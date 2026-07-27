@@ -88,11 +88,15 @@ def main() -> None:
         # PENDING_ACTION_ALARM) plus the page-load/sleep/read time below, or
         # every call trips the browserRun handler's own timeout and this
         # 60s-interval poller (skill_poll_interval_ms) never gets a result.
+        # keep_open: this is a 60s poll, so the extension holds one persistent
+        # worker tab for this URL and refreshes it, rather than opening and
+        # closing a tab every minute. One-shot skills leave keep_open off and
+        # get their tab closed when they finish.
         result = browser_run(USAGE_URL, [
             {"type": "customStep", "name": "sleep", "parameters": {"ms": 3000}},
             {"type": "customStep", "name": "read",
              "parameters": {"selector": "body", "extract": "text", "as": "body_text", "timeout_ms": 5000}},
-        ], timeout_ms=75000)
+        ], keep_open=True, timeout_ms=75000)
     except Exception as e:
         out = {**empty_result(str(e)), "last_poll_at": str(int(now_ms))}
         print(json.dumps(out, ensure_ascii=False), flush=True)

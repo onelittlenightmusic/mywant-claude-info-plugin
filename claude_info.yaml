@@ -11,6 +11,10 @@ wantType:
     pattern: independent
     labels:
       user-control: "true"
+      # What the tile shows at a glance: the session gauge, as a percentage.
+      # The card still says the whole of it.
+      tile-readout: session_usage_pct
+      tile-readout-suffix: "%"
 
   state:
     - name: session_usage_pct

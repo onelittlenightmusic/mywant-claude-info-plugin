@@ -134,5 +134,73 @@ def main() -> None:
     print(json.dumps(out, ensure_ascii=False), flush=True)
 
 
+class _TaggedStdout:
+    """stdout for one resident request: every JSON line main() prints goes out
+    carrying the request's _id, which is how the engine matches the answer."""
+
+    def __init__(self, out, rid):
+        self.out, self.rid, self.buf = out, rid, ""
+
+    def write(self, s: str) -> int:
+        self.buf += s
+        while "\n" in self.buf:
+            line, self.buf = self.buf.split("\n", 1)
+            self._emit(line)
+        return len(s)
+
+    def _emit(self, line: str) -> None:
+        line = line.strip()
+        if not line:
+            return
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            return  # not part of the protocol; never let it reach the engine
+        obj["_id"] = self.rid
+        self.out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+        self.out.flush()
+
+    def flush(self) -> None:
+        if self.buf:
+            self._emit(self.buf)
+            self.buf = ""
+
+
+def serve() -> None:
+    """Resident mode (MYWANT_MRS_SERVE=1, skill_serve on the want).
+
+    The engine keeps this one interpreter alive and sends a request per tick,
+    {"_id": n, "args": [...]} on a line, instead of starting python3 and
+    importing mrs_browser every tick. Each request runs main() exactly as a spawn
+    would, with the args in sys.argv.
+    """
+    real_stdout = sys.stdout
+    for raw in sys.stdin:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            req = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        rid = req.get("_id")
+        sys.argv = [sys.argv[0]] + [str(a) for a in (req.get("args") or [])]
+        tagged = _TaggedStdout(real_stdout, rid)
+        sys.stdout = tagged
+        try:
+            main()
+        except Exception as e:  # one bad tick must not take the process down
+            tagged.flush()
+            sys.stdout = real_stdout
+            real_stdout.write(json.dumps({"_id": rid, "error": f"{type(e).__name__}: {e}"}) + "\n")
+            real_stdout.flush()
+            continue
+        tagged.flush()
+        sys.stdout = real_stdout
+
+
 if __name__ == "__main__":
-    main()
+    if os.environ.get("MYWANT_MRS_SERVE") == "1":
+        serve()
+    else:
+        main()

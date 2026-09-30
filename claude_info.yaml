@@ -121,6 +121,13 @@ wantType:
       persistent: true
       initialValue: 90
 
+    - name: skill_serve
+      description: Keep one python3 alive and send it a request per tick (main.py serve mode) instead of starting an interpreter and importing mrs_browser every minute.
+      type: bool
+      label: current
+      persistent: true
+      initialValue: true
+
     - name: skill_poll_interval_ms
       description: MRS agent polling interval in milliseconds
       type: int
@@ -141,6 +148,7 @@ wantType:
     current:
       skill_path: "~/.mywant/custom-types/mywant-claude-info-plugin/main.py"
       skill_json_arg_template: ""
+      skill_serve: true
     goal:
       skill_timeout_seconds: 90
       skill_poll_interval_ms: 60000

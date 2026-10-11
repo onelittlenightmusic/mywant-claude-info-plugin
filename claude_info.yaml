@@ -5,8 +5,8 @@ wantType:
     description: |
       Shows Claude.ai current session and weekly usage limits as a gauge.
       Reads data via the mywant browser extension (a background tab, no
-      focus stolen). Updates every 60 seconds.
-    version: '1.2'
+      focus stolen). Updates every 10 minutes.
+    version: '1.3'
     category: utility
     pattern: independent
     labels:
@@ -129,11 +129,11 @@ wantType:
       initialValue: true
 
     - name: skill_poll_interval_ms
-      description: MRS agent polling interval in milliseconds
+      description: MRS agent polling interval in milliseconds — ten minutes; a minute sent a browser to claude.ai sixty times an hour, which is more than anyone reads a usage gauge
       type: int
       label: goal
       persistent: true
-      initialValue: 60000
+      initialValue: 600000
 
     - name: mrs_raw_output
       description: Raw JSON output from the monitor script
@@ -151,7 +151,7 @@ wantType:
       skill_serve: true
     goal:
       skill_timeout_seconds: 90
-      skill_poll_interval_ms: 60000
+      skill_poll_interval_ms: 600000
 
   requires:
     - monitor_mrs_agent

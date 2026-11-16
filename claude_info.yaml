@@ -10,6 +10,7 @@ wantType:
     category: utility
     pattern: independent
     labels:
+      aliases: "claude,Claude使用量"
       user-control: "true"
       # What the tile shows at a glance: the session gauge, as a percentage.
       # The card still says the whole of it.

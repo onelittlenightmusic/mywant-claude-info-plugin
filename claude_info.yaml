@@ -145,6 +145,30 @@ wantType:
 
   finalResultField: "summary"
 
+  # When it tells of its answer — the gauge is read every ten minutes and its
+  # numbers move every time, so not every answer is news (the standard timing
+  # "answer" turned off). main.py says which moment it is, from what it kept
+  # last time (its memo): near_limit when usage goes past 80%, session_reset /
+  # weekly_reset when usage drops (the limit came round again) — and asks to
+  # be woken a minute after the session resets, to see it then.
+  timings:
+    - name: answer
+      description: 新しい結果が出たとき（10分ごとの更新では知らせない）
+      murmur: false
+      notify: false
+    - name: near_limit
+      description: 使用率が80%を超えたとき
+      murmur: true
+      notify: true
+    - name: session_reset
+      description: セッションの上限がリセットされたとき
+      murmur: true
+      notify: true
+    - name: weekly_reset
+      description: 週の上限がリセットされたとき
+      murmur: true
+      notify: false
+
   onInitialize:
     current:
       skill_path: "~/.mywant/custom-types/mywant-claude-info-plugin/main.py"

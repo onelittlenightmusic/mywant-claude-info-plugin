@@ -29,6 +29,61 @@ from mrs_browser import browser_run  # noqa: E402
 
 USAGE_URL = "https://claude.ai/new#settings/usage"
 
+# 使用率がここを超えたら「上限に近い」(timing near_limit)。
+NEAR_LIMIT_PCT = 80
+
+# 常駐モード（serve）で、エンジンがリクエストと一緒に渡すメモ。
+_serve_memo = None
+
+
+def memo() -> dict:
+    """前回の自分が残したメモ（_memo）。常駐モードではリクエストから、
+    それ以外は SDK の current() から、SDK が無ければ環境変数から。"""
+    if _serve_memo is not None:
+        return dict(_serve_memo)
+    try:
+        from mywant import current
+        return dict(current().memo or {})
+    except Exception:
+        try:
+            return json.loads(os.environ.get("MYWANT_WANT_MEMO") or "{}") or {}
+        except ValueError:
+            return {}
+
+
+def parse_resets_in(text: str):
+    """「2 hr 27 min」「45 min」「1 day 3 hr」をその長さの秒数にする。読めなければ None。"""
+    total, found = 0, False
+    for n, unit in re.findall(r"(\d+)\s*(day|hr|hour|min)", text or ""):
+        found = True
+        total += int(n) * {"day": 86400, "hr": 3600, "hour": 3600, "min": 60}[unit]
+    return total if found else None
+
+
+def tell_timings(session_pct: int, weekly_pct: int, resets_in: str, before: dict, now_s: float) -> tuple[list, dict]:
+    """どの timing を言うか、いつ起こしてもらうか。
+
+    near_limit: 使用率（セッションか週）が NEAR_LIMIT_PCT を越えた回。
+    session_reset / weekly_reset: 前回より使用率が下がった回（使い切って
+    リセットされた）。セッションのリセット時刻（resets_in）の1分後に起こして
+    もらう — 見張りは10分おきなので、リセットをその時に確かめるため。
+    """
+    lines = []
+    last_s, last_w = before.get("session_pct"), before.get("weekly_pct")
+    crossed = lambda last, now: last is not None and last < NEAR_LIMIT_PCT <= now
+    if crossed(last_s, session_pct) or crossed(last_w, weekly_pct):
+        lines.append({"_timing": "near_limit"})
+    if last_s is not None and session_pct < last_s:
+        lines.append({"_timing": "session_reset"})
+    if last_w is not None and weekly_pct < last_w:
+        lines.append({"_timing": "weekly_reset"})
+    left = parse_resets_in(resets_in)
+    if left:
+        wake = datetime.fromtimestamp(now_s + left + 60, tz=timezone.utc)
+        lines.append({"_wake_at": wake.isoformat(timespec="seconds")})
+    lines.append({"_memo": {"session_pct": session_pct, "weekly_pct": weekly_pct}})
+    return lines, {}
+
 
 def progress(pct: int, msg: str = "") -> None:
     print(json.dumps({"_progress": pct, "_message": msg}, ensure_ascii=False), flush=True)
@@ -118,6 +173,9 @@ def main() -> None:
     if session_resets_in:
         summary += f" · resets in {session_resets_in}"
     summary += f" | Weekly {weekly_pct}%"
+    lines, _ = tell_timings(session_pct, weekly_pct, session_resets_in, memo(), time.time())
+    for line in lines:
+        print(json.dumps(line, ensure_ascii=False), flush=True)
     out = {
         "session_usage_pct": session_pct,
         "session_resets_in": session_resets_in,
@@ -185,6 +243,8 @@ def serve() -> None:
             continue
         rid = req.get("_id")
         sys.argv = [sys.argv[0]] + [str(a) for a in (req.get("args") or [])]
+        global _serve_memo
+        _serve_memo = req.get("memo") or {}
         tagged = _TaggedStdout(real_stdout, rid)
         sys.stdout = tagged
         try:
